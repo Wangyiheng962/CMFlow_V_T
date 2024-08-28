@@ -18,13 +18,15 @@ def weights_init(m):
         
 def init_model(args):
     
-    if args.model in ['cmflow', 'cmflow_t', 'raflow']:
+    if args.model in ['cmflow', 'cmflow_t', 'raflow','pretrain_v']:
         if args.model in ['raflow']:
             net = RaFlow(args).cuda()
         if args.model in ['cmflow']:
             net = CMFlow(args).cuda()
         if args.model in ['cmflow_t']:
             net = CMFlow_T(args).cuda()
+        if args.model in ['pretrain_v']:
+            net=CMFlow(args).cuda()
             
         if args.eval or args.load_checkpoint:
             if args.model_path is '':

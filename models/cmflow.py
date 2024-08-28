@@ -5,7 +5,7 @@ import os
 import torch.nn.functional as F
 from utils.model_utils import *
 from utils import *
-
+from models.rigid_motion import *
 
 class CMFlow(nn.Module):
     
@@ -46,6 +46,8 @@ class CMFlow(nn.Module):
         sf_mlps = [int(sf_inch/2), int(sf_inch/4), int(sf_inch/8)]
         self.fp = FlowHead(in_channel=sf_inch, mlp=sf_mlps)
         self.mp = MotionHead(in_channel=sf_inch, mlp=sf_mlps)
+        self.generator=AdaptivePointGenerator(input_dim=3)
+
             
         
     def rigid_to_flow(self,pc,trans):
@@ -56,7 +58,7 @@ class CMFlow(nn.Module):
     
     
     
-    def Backbone(self,pc1,pc2,feature1,feature2):
+    def Backbone(self,pc1,pc2,feature1,feature2,vel1,vel2,mask1,mask2):
         
         '''
         pc1: B 3 N
@@ -81,7 +83,7 @@ class CMFlow(nn.Module):
         pc2_features = torch.cat((pc2_features, gfeat_2),dim=1)
         
         ## associate data from two sets 
-        cor_features = self.fc_layer(pc1, pc2, pc1_features, pc2_features)
+        cor_features,rigid_velocities = self.fc_layer(pc1, pc2, pc1_features, pc2_features,vel1,vel2,mask1,mask2,generator=self.generator)
         
         ## generate embeddings
         embeddings = torch.cat((feature1, pc1_features, cor_features),dim=1)
@@ -90,7 +92,7 @@ class CMFlow(nn.Module):
          
         final_features = torch.cat((prop_features, gfeat),dim=1)
         
-        return final_features
+        return final_features,rigid_velocities
 
 
     def EgoMotionHead(self, flow, pc1, score):
@@ -168,11 +170,12 @@ class CMFlow(nn.Module):
     
         return Trans
                  
-    def forward(self, pc1, pc2, feature1, feature2, label_m, mode):
+    def forward(self, pc1, pc2, feature1, feature2, label_m, mode,vel1,vel2,mask1,mask2,v_train):
         
         # extract backbone features 
-        final_features = self.Backbone(pc1,pc2,feature1,feature2)
-        
+        final_features,rigid_velocities= self.Backbone(pc1,pc2,feature1,feature2,vel1,vel2,mask1,mask2)
+        if v_train:
+            return rigid_velocities
         # predict initial scene flow and classfication map
         output = self.fp(final_features)
         stat_cls = self.mp(final_features)
@@ -194,6 +197,6 @@ class CMFlow(nn.Module):
         sf_agg = self.refine_with_transform(output,pc1,pre_trans,mask)
         
     
-        return sf_agg, stat_cls, pre_trans, mask
+        return sf_agg, stat_cls, pre_trans, mask,rigid_velocities
     
     

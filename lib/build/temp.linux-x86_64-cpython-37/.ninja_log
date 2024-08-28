@@ -1,0 +1,10 @@
+# ninja log v5
+1	5469	1724071090398189544	/root/autodl-tmp/CMFlow/lib/build/temp.linux-x86_64-cpython-37/src/group_points.o	e2d5b0471acb347b
+0	5517	1724071090446189731	/root/autodl-tmp/CMFlow/lib/build/temp.linux-x86_64-cpython-37/src/sampling.o	f611140924ca9990
+1	5693	1724071090622190418	/root/autodl-tmp/CMFlow/lib/build/temp.linux-x86_64-cpython-37/src/interpolate.o	79cf3acccc42d88e
+0	5863	1724071090794191089	/root/autodl-tmp/CMFlow/lib/build/temp.linux-x86_64-cpython-37/src/ball_query.o	979e3a3cfad94b8e
+1	14835	1724071099758225683	/root/autodl-tmp/CMFlow/lib/build/temp.linux-x86_64-cpython-37/src/group_points_gpu.o	e825a5cf4d63ba6c
+1	14859	1724071099786225790	/root/autodl-tmp/CMFlow/lib/build/temp.linux-x86_64-cpython-37/src/ball_query_gpu.o	c902285b5e504cdc
+1	14897	1724071099826225943	/root/autodl-tmp/CMFlow/lib/build/temp.linux-x86_64-cpython-37/src/interpolate_gpu.o	cdefc103f64296e0
+2	15692	1724071100622228977	/root/autodl-tmp/CMFlow/lib/build/temp.linux-x86_64-cpython-37/src/sampling_gpu.o	db6d17118f2f44b3
+2	19930	1724071104846244984	/root/autodl-tmp/CMFlow/lib/build/temp.linux-x86_64-cpython-37/src/pointnet2_api.o	32432614fcd7de3c

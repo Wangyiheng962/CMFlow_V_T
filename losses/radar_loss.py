@@ -267,9 +267,10 @@ class RadarFlowLoss(Module):
         self.motion_seg_loss = MotionSegLoss()
         self.opt_flow_loss = OpticalFlowLoss()
         self.dyn_flow_loss = DynamicFlowLoss()
+        self.velocity_loss=VelocityRegressionLoss()
         
     def forward(self, args, pc1, pc2, pred_f, vel1, gt_f=None, pre_trans=None, mseg_pre=None, gt_trans=None, \
-                             mseg_gt=None, dyn_mask=None, radar_u=None, radar_v=None, opt=None, basic_f=None):
+                             mseg_gt=None, dyn_mask=None, radar_u=None, radar_v=None, opt=None, basic_f=None,rigid_velocities=None):
 
         if args.model == 'raflow':
             self_sup_loss, items = self.self_sup_loss(pc1, pc2, pred_f, vel1)
@@ -282,17 +283,41 @@ class RadarFlowLoss(Module):
             dyn_flow_loss = self.dyn_flow_loss(pred_f, gt_f, dyn_mask)
             pc1_warp = pc1 + pred_f
             opt_flow_loss = self.opt_flow_loss(opt, radar_u, radar_v, pc1_warp, mseg_gt, args)
+            velocity_loss,_=self.velocity_loss(rigid_velocities, vel1, pc1)
             items['egoLoss'] = ego_motion_loss.item()
             items['maskLoss'] = motion_seg_loss.item()
             items['opticalLoss'] = opt_flow_loss.item()
             items['superviseLoss'] = dyn_flow_loss.item()
+            items['VelocityRegressionLoss']=velocity_loss.item()
             total_loss = self.w_self * self_sup_loss + self.w_em * ego_motion_loss +\
-                         self.w_ms * motion_seg_loss + self.w_opt * opt_flow_loss + self.w_dyn * dyn_flow_loss
+                         self.w_ms * motion_seg_loss + self.w_opt * opt_flow_loss + self.w_dyn * dyn_flow_loss+velocity_loss*0.1
 
         return total_loss, items
 
        
+class VelocityRegressionLoss(nn.Module):
+    def __init__(self):
+        super(VelocityRegressionLoss, self).__init__()
 
+    def forward(self, rigid_velocities, vel1, pc1):
+        """
+        rigid_velocities: 预测的刚性速度, [B, N, 3]
+        vel1: 真实的径向速度, [B, N]
+        pc1: 方向向量, [B, 3, N] （注意：需要转置到 [B, N, 3]）
+        """
+        # 转置 pc1 以匹配维度 [B, N, 3]
+        pc1 = pc1.transpose(1, 2)
+
+        # 归一化 pc1 的方向向量
+        u_pc1 = pc1 / torch.norm(pc1, dim=-1, keepdim=True)  # [B, N, 3]
+
+        # 使用 pc1 方向计算模型预测的径向速度
+        reconstructed_vel = torch.sum(rigid_velocities * u_pc1, dim=-1)  # [B, N]
+
+        # 计算预测的径向速度和真实的径向速度之间的误差
+        loss = torch.mean((reconstructed_vel - vel1) ** 2)  # MSE loss
+
+        return loss, {'velocity_regression_loss': loss.item()}
 
 
 

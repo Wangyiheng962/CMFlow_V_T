@@ -20,7 +20,7 @@ from losses import *
 
 def extract_data_info(data):
 
-    pc1, pc2, ft1, ft2, trans, gt, mask, interval, radar_u, radar_v, opt_flow = data
+    pc1, pc2, ft1, ft2, trans, gt, mask, interval, radar_u, radar_v, opt_flow,vel1,vel2,mask1,mask2 = data
     pc1 = pc1.cuda().transpose(2,1).contiguous()
     pc2 = pc2.cuda().transpose(2,1).contiguous()
     ft1 = ft1.cuda().transpose(2,1).contiguous()
@@ -33,9 +33,14 @@ def extract_data_info(data):
     interval = interval.cuda().float()
     gt = gt.cuda().float()
 
-    return pc1, pc2, ft1, ft2, trans, gt, mask, interval, radar_u, radar_v, opt_flow
+    # 对vel1, vel2, mask1, mask2进行处理
+    vel1 = vel1.cuda().float()
+    vel2 = vel2.cuda().float()
+    mask1 = mask1.cuda()
+    mask2 = mask2.cuda()
 
-
+# 返回所有处理后的变量
+    return pc1, pc2, ft1, ft2, trans, gt, mask, interval, radar_u, radar_v, opt_flow, vel1, vel2, mask1, mask2
 def train_one_epoch(args, net, train_loader, opt):
     
     num_examples = 0
@@ -47,7 +52,7 @@ def train_one_epoch(args, net, train_loader, opt):
         
         ## reading data from dataloader and transform their format
         pc1, pc2, ft1, ft2, gt_trans, flow_label, \
-            fg_mask, interval, radar_u, radar_v, opt_flow = extract_data_info(data)
+        fg_mask, interval, radar_u, radar_v, opt_flow, vel_1, vel_2, mask1, mask2 = extract_data_info(data)
         vel1 = ft1[:,0]
         batch_size = pc1.size(0)
         num_examples += batch_size
@@ -66,10 +71,17 @@ def train_one_epoch(args, net, train_loader, opt):
             # aggregate pseudo label generated w.r.t rrv and pseudo label 
             mseg_gt[torch.logical_not(dyn_mask==1)] = dyn_mask[torch.logical_not(dyn_mask==1)]
             # forward and loss computation
-            pred_f, mseg_pre, pre_trans, _ = net(pc1, pc2, ft1, ft2, mseg_gt, mode)
+            pred_f, mseg_pre, pre_trans, _ ,rigid_velocities= net(pc1, pc2, ft1, ft2, mseg_gt, mode,vel_1,vel_2,mask1,mask2,v_train=False)
             loss_obj = RadarFlowLoss()
             loss, items = loss_obj(args, pc1, pc2, pred_f, vel1, flow_label.transpose(2,1), pre_trans, mseg_pre, gt_trans,\
-                                        mseg_gt, dyn_mask, radar_u, radar_v, opt_flow)
+                                        mseg_gt, dyn_mask, radar_u, radar_v, opt_flow,rigid_velocities=rigid_velocities)
+            
+
+        if args.model == 'pretrain_v':
+            rigid_velocities=net(pc1, pc2, ft1, ft2, None, mode,vel_1,vel_2,mask1,mask2,v_train=True)
+            # 计算速度回归损失
+            loss_obj = VelocityRegressionLoss()
+            loss, items = loss_obj(rigid_velocities, vel1, pc1)  # 确保传入了 pc1
         
         opt.zero_grad() 
         loss.backward()
@@ -106,7 +118,7 @@ def eval_one_epoch(args, net, eval_loader, textio):
     num_pcs=0 
     
     sf_metric = {'rne':0, '50-50 rne': 0, 'mov_rne': 0, 'stat_rne': 0,\
-                 'sas': 0, 'ras': 0, 'epe': 0, 'accs': 0, 'accr': 0}
+                 'sas': 0, 'ras': 0, 'epe': 0, 'accs': 0, 'accr': 0,'vel_epe': 0}
 
     seg_metric = {'acc': 0, 'miou': 0, 'sen': 0}
     pose_metric = {'RTE': 0, 'RAE': 0}
@@ -118,11 +130,7 @@ def eval_one_epoch(args, net, eval_loader, textio):
     for i, data in tqdm(enumerate(eval_loader), total = len(eval_loader)):
 
     
-        pc1, pc2, ft1, ft2, trans, gt , mask, interval, radar_u, radar_v, padding_opt = data
-        pc1 = pc1.cuda().transpose(2,1).contiguous()
-        pc2 = pc2.cuda().transpose(2,1).contiguous()
-        ft1 = ft1.cuda().transpose(2,1).contiguous()
-        ft2 = ft2.cuda().transpose(2,1).contiguous()
+        pc1, pc2, ft1, ft2, trans, gt, mask, interval, radar_u, radar_v, opt_flow, vel_1, vel_2, mask1, mask2 = extract_data_info(data)
         mask = mask.cuda()
         interval = interval.cuda().float()
         gt = gt.cuda().float()
@@ -139,7 +147,26 @@ def eval_one_epoch(args, net, eval_loader, textio):
             if args.model=='raflow':
                 _, pred_f, pred_t, pred_m = net(pc1, pc2, ft1, ft2, interval)
             if args.model=='cmflow':
-                pred_f, stat_cls, pred_t, pred_m = net(pc1, pc2, ft1, ft2, None, 'test')
+                pred_f, stat_cls, pred_t, pred_m,rigid_velocities= net(pc1, pc2, ft1, ft2, None, 'test',vel_1,vel_2,mask1,mask2,v_train=False)
+
+            if args.model == 'pretrain_v':
+                # pretrain_v 模式，只评估速度回归部分
+                rigid_velocities=net(pc1, pc2, ft1, ft2, None, 'test',vel_1,vel_2,mask1,mask2,v_train=True)
+                
+                # 使用前面定义的速度回归损失进行评估
+                loss_obj = VelocityRegressionLoss()
+                loss, items = loss_obj(rigid_velocities, vel1, pc1)
+                pc1 = pc1.transpose(1, 2)
+                u_pc1 = pc1 / torch.norm(pc1, dim=-1, keepdim=True)  # [B, N, 3]
+                 # 使用 pc1 方向计算模型预测的径向速度
+                reconstructed_vel = torch.sum(rigid_velocities * u_pc1, dim=-1)
+                vel_epe = torch.mean(torch.abs(reconstructed_vel - vel1))  # [B, N]
+                sf_metric['vel_epe'] += batch_size * vel_epe  # 累加计算结果
+            
+                textio.cprint(f'Batch {i}, Velocity Regression Loss: {loss.item():.4f}')
+                num_pcs+=batch_size
+                infer_time += time()-start_point
+                continue  # 继续到下一个批次，因为 pretrain_v 不参与其他评估
         
             # end point for inference
             infer_time += time()-start_point
@@ -172,7 +199,7 @@ def eval_one_epoch(args, net, eval_loader, textio):
                 visulize_result_2D_seg_pre(pc1, pc2, mask, pred_m, num_pcs, args)
                 
             # evaluate the estimated results using ground truth
-            batch_res = eval_scene_flow(pc1, pred_f.transpose(2,1).contiguous(), gt, mask, args)
+            batch_res = eval_scene_flow(pc1, pred_f.transpose(2,1).contiguous(), gt, mask,vel_1,rigid_velocities,args)
             for metric in sf_metric:
                 sf_metric[metric] += batch_size * batch_res[metric]
 

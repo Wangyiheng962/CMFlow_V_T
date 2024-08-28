@@ -39,12 +39,15 @@ def get_carterian_res(pc, sensor, args):
     
     return xyz_res
         
-def eval_scene_flow(pc, pred, labels, mask, args):
+def eval_scene_flow(pc, pred, labels, mask,vel,rigid_velocities,args):
+
     
     pc = pc.cpu().numpy()
     pred = pred.cpu().detach().numpy()
     labels = labels.cpu().numpy()
     mask = mask.cpu().numpy()
+    vel=vel.cpu().numpy()
+    rigid_velocities=rigid_velocities.cpu().numpy()
     error = np.sqrt(np.sum((pred - labels)**2, 2) + 1e-20)
     error_x = np.abs(pred[0,:,0]-labels[0,:,0])
     error_y = np.abs(pred[0,:,1]-labels[0,:,1])
@@ -73,10 +76,22 @@ def eval_scene_flow(pc, pred, labels, mask, args):
     ## calculate Strict/Relaxed Accuracy Score
     sas = np.sum(np.logical_or((re_error <= 0.10), (re_error/gtflow_len <= 0.10)))/(np.size(pred,0)*np.size(pred,1))
     ras = np.sum(np.logical_or((re_error <= 0.20), (re_error/gtflow_len <= 0.20)))/(np.size(pred,0)*np.size(pred,1))
+
+    # 假设 pc1, rigid_velocities, vel1 已经是 numpy 数组
+    pc = pc.transpose(0, 2, 1)  # [B, 3, N] -> [B, N, 3]
+
+    # 归一化径向向量 u_pc1
+    u_pc = pc / np.linalg.norm(pc, axis=-1, keepdims=True)  # [B, N, 3]
+
+    # 使用 pc1 方向计算模型预测的径向速度
+    reconstructed_vel = np.sum(rigid_velocities * u_pc, axis=-1)  # [B, N]
+
+    # 计算与原始 vel1 的误差
+    vel_epe = np.mean(np.abs(reconstructed_vel - vel))  # 计算平均绝对误差
     
    
     sf_metric = {'rne':rne, '50-50 rne': avg_rne, 'mov_rne': mov_rne, 'stat_rne': stat_rne,\
-                 'sas': sas, 'ras': ras, 'epe':epe, 'accs': accs, 'accr': accr}
+                 'sas': sas, 'ras': ras, 'epe':epe, 'accs': accs, 'accr': accr,'vel_epe':vel_epe}
     
  
     return sf_metric

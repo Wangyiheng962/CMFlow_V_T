@@ -32,4 +32,8 @@ loss_dict = {
                 'veloLoss':[],
                 'smoothnessLoss':[],
                 },
+            'pretrain_v':
+            {
+                'velocity_regression_loss':[]
+            }
             }

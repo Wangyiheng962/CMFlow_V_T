@@ -62,6 +62,10 @@ class vodDataset(Dataset):
         feature_1 = data_1[:,[4,3,3]]
         feature_2 = data_2[:,[4,3,3]] 
 
+        # Extracting v_r_compensated as vel1 and vel2
+        vel1 = data_1[:,4]  # v_r_compensated from data_1
+        vel2 = data_2[:,4]  # v_r_compensated from data_2
+
         # GT labels and pseudo FG labels (from lidar)
         gt_labels = np.array(data["gt_labels"]).astype('float32')
         pse_labels = np.array(data["pse_labels"]).astype('float32')
@@ -88,12 +92,15 @@ class vodDataset(Dataset):
 
         # static points transformation from frame 1 to frame 2  
         trans = np.linalg.inv(np.array(data["trans"])).astype('float32')
-
+        npts_1 = pos_1.shape[0]
+        npts_2 = pos_2.shape[0]
         ## downsample to npoints to enable fast batch processing (not in test)
         if not self.eval:
             
-            npts_1 = pos_1.shape[0]
-            npts_2 = pos_2.shape[0]
+           
+            mask_1 = np.ones(self.npoints, dtype=bool)
+            mask_2 = np.ones(self.npoints, dtype=bool)
+            
 
             ## if the number of points < npoints, fill empty space by duplicate sampling 
             ##  (filler points less than 25%)
@@ -102,11 +109,13 @@ class vodDataset(Dataset):
             if npts_1<self.npoints:
                 sample_idx1 = np.arange(0,npts_1)
                 sample_idx1 = np.append(sample_idx1, np.random.choice(npts_1,self.npoints-npts_1,replace=True))
+                mask_1[npts_1:] = False  # Mark the additional points as False
             else:
                 sample_idx1 = np.random.choice(npts_1, self.npoints, replace=False)
             if npts_2<self.npoints:
                 sample_idx2 = np.arange(0,npts_2)
                 sample_idx2 = np.append(sample_idx2, np.random.choice(npts_2,self.npoints-npts_2,replace=True))
+                mask_2[npts_2:] = False  # Mark the additional points as False
             else:
                 sample_idx2 = np.random.choice(npts_2, self.npoints, replace=False)
             
@@ -114,14 +123,18 @@ class vodDataset(Dataset):
             pos_2 = pos_2[sample_idx2,:]
             feature_1 = feature_1[sample_idx1, :]
             feature_2 = feature_2[sample_idx2, :]
+            vel1 = vel1[sample_idx1]
+            vel2 = vel2[sample_idx2]
             radar_u = radar_u[sample_idx1]
             radar_v = radar_v[sample_idx1]
             opt_flow = opt_flow[sample_idx1,:]
 
             labels = labels[sample_idx1,:]
             mask = mask[sample_idx1]
-
-        return pos_1, pos_2, feature_1, feature_2, trans, labels, mask, interval, radar_u, radar_v, opt_flow
+        else:
+            mask_1=np.ones(npts_1,dtype=bool)
+            mask_2=np.ones(npts_2,dtype=bool)
+        return pos_1, pos_2, feature_1, feature_2, trans, labels, mask, interval, radar_u, radar_v, opt_flow,vel1,vel2,mask_1,mask_2
 
 
     def read_calib_files(self):

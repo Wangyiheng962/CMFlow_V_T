@@ -4,7 +4,7 @@ import torch.nn.functional as F
 from time import time
 import numpy as np
 from lib import pointnet2_utils as pointutils
-
+from models.rigid_motion import custom_cluster_pc1
 def square_distance(src, dst):
     """
     Calculate Euclid distance between each two points.
@@ -98,6 +98,80 @@ def knn_point(nsample, xyz, new_xyz):
     _, group_idx = torch.topk(sqrdists, nsample, dim = -1, largest=False, sorted=False)
     return group_idx
 
+def rigid_velocity_regression(final_cluster_coords, final_cluster_vel, vel1, pc1):
+    B, N, K, _ = final_cluster_coords.shape  # [B, N, K, 3]
+
+    # 归一化径向向量
+    u = final_cluster_coords / torch.norm(final_cluster_coords, dim=-1, keepdim=True)  # [B, N, K, 3]
+
+    # 构造矩阵 A 和向量 b
+    A = u  # [B, N, K, 3]
+    b_vec = final_cluster_vel  # [B, N, K]
+
+    # 初次计算 A^T * A 和 A^T * b
+    ATA = torch.matmul(A.transpose(-1, -2), A)  # [B, N, 3, 3]
+    ATb = torch.matmul(A.transpose(-1, -2), b_vec.unsqueeze(-1))  # [B, N, 3, 1]
+
+    # 正则化系数以避免数值不稳定
+    epsilon = 1e-6
+    ATA += epsilon * torch.eye(ATA.size(-1), device=ATA.device).unsqueeze(0)
+
+    # 初次计算未加权的最小二乘解 v_world
+    v_world, _ = torch.solve(ATb, ATA)
+    v_world = v_world.squeeze(-1)  # [B, N, 3]
+
+    # 验证步骤（未加权）
+    u_pc1 = pc1 / torch.norm(pc1, dim=-1, keepdim=True)  # [B, N, 3]
+    reconstructed_vel_unweighted = torch.sum(v_world * u_pc1, dim=-1)  # [B, N]
+
+    # 计算与原始 vel1 的误差（未加权）
+    error_unweighted = torch.abs(reconstructed_vel_unweighted - vel1)  # [B, N]
+    mean_error_unweighted = torch.mean(error_unweighted)  # [1]
+    max_error_unweighted = torch.max(error_unweighted)  # [1]
+
+    print(f"Unweighted - Mean error: {mean_error_unweighted.item()}, Max error: {max_error_unweighted.item()}")
+
+    # # 计算初始残差
+    # residual = b_vec - torch.sum(A * v_world.unsqueeze(-2), dim=-1)  # [B, N, K]
+    
+    # # 设置残差阈值
+    # residual_threshold = 1.0
+
+    # # 计算权重：使用残差的倒数（加一个小量以避免除零），当残差大于阈值时
+    # residual_weights = torch.where(
+    #     torch.abs(residual) > residual_threshold,
+    #     1.0 / (torch.abs(residual) + epsilon),
+    #     torch.ones_like(residual)  # 如果残差小于或等于阈值，权重设为1
+    # )  # [B, N, K]
+    
+    # # 加权 A 和 b
+    # weighted_A = A * residual_weights.unsqueeze(-1)  # [B, N, K, 3]
+    # weighted_b = b_vec * residual_weights  # [B, N, K]
+
+    # # 重新计算加权的 A^T * A 和 A^T * b
+    # ATA_weighted = torch.matmul(weighted_A.transpose(-1, -2), weighted_A)  # [B, N, 3, 3]
+    # ATb_weighted = torch.matmul(weighted_A.transpose(-1, -2), weighted_b.unsqueeze(-1))  # [B, N, 3, 1]
+
+    # # 正则化加权的 ATA 矩阵
+    # ATA_weighted += epsilon * torch.eye(ATA_weighted.size(-1), device=ATA_weighted.device).unsqueeze(0)
+
+    # # 计算加权最小二乘解 v_world_weighted
+    # v_world_weighted, _ = torch.solve(ATb_weighted, ATA_weighted)
+    # v_world_weighted = v_world_weighted.squeeze(-1)  # [B, N, 3]
+
+    # # 验证步骤（加权）
+    # reconstructed_vel_weighted = torch.sum(v_world_weighted * u_pc1, dim=-1)  # [B, N]
+    
+    # # 计算与原始 vel1 的误差（加权）
+    # error_weighted = torch.abs(reconstructed_vel_weighted - vel1)  # [B, N]
+    # mean_error_weighted = torch.mean(error_weighted)  # [1]
+    # max_error_weighted = torch.max(error_weighted)  # [1]
+
+    # print(f"Weighted - Mean error: {mean_error_weighted.item()}, Max error: {max_error_weighted.item()}")
+
+    return v_world
+
+
 class MultiScaleEncoder(nn.Module):
     def __init__(self, radius, nsample, in_channel, mlp, mlp2):
         super(MultiScaleEncoder, self).__init__()
@@ -146,7 +220,7 @@ class PointLocalFeature(nn.Module):
         device = xyz.device
         B, C, N = xyz.shape
         xyz_t = xyz.permute(0, 2, 1).contiguous()
-        new_points = self.queryandgroup(xyz_t, xyz_t, points) 
+        new_points = self.queryandgroup(xyz_t, xyz_t, points)
         
         for i, conv in enumerate(self.mlp_convs):
             bn = self.mlp_bns[i]
@@ -166,6 +240,9 @@ class FeatureCorrelator(nn.Module):
         super(FeatureCorrelator, self).__init__()
         self.nsample = nsample
         self.bn = bn
+        self.w_xyz = nn.Parameter(torch.tensor(0.4))
+        self.w_vel = nn.Parameter(torch.tensor(0.2))
+        self.w_points = nn.Parameter(torch.tensor(0.4))
         self.mlp_convs = nn.ModuleList()
         if bn:
             self.mlp_bns = nn.ModuleList()
@@ -182,7 +259,7 @@ class FeatureCorrelator(nn.Module):
         self.relu = nn.ReLU(inplace=True) if not use_leaky else nn.LeakyReLU(0.1, inplace=True)
 
 
-    def forward(self, xyz1, xyz2, points1, points2):
+    def forward(self, xyz1, xyz2, points1, points2,vel1,vel2,mask1,mask2,generator):
         """
         Cost Volume layer for Flow Estimation
         Input:
@@ -194,6 +271,14 @@ class FeatureCorrelator(nn.Module):
             new_points: upsample points feature data, [B, D', N1]
         """
         # import ipdb; ipdb.set_trace()
+        # print("xyz1 shape:", xyz1.shape, "device:", xyz1.device)
+        # print("xyz2 shape:", xyz2.shape, "device:", xyz2.device)
+        # print("points1 shape:", points1.shape, "device:", points1.device)
+        # print("points2 shape:", points2.shape, "device:", points2.device)
+        # print("vel1 shape:", vel1.shape, "device:", vel1.device)
+        # print("vel2 shape:", vel2.shape, "device:", vel2.device)
+        # print("mask1 shape:", mask1.shape, "device:", mask1.device)
+        # print("mask2 shape:", mask2.shape, "device:", mask2.device)
         B, C, N1 = xyz1.shape
         _, _, N2 = xyz2.shape
         _, D1, _ = points1.shape
@@ -202,9 +287,32 @@ class FeatureCorrelator(nn.Module):
         xyz2 = xyz2.permute(0, 2, 1)
         points1 = points1.permute(0, 2, 1)
         points2 = points2.permute(0, 2, 1)
+        final_cluster_coords, final_cluster_vel = custom_cluster_pc1(
+        pc1=xyz1, 
+        pc2=xyz2, 
+        ft1=points1, 
+        ft2=points2, 
+        vel1=vel1, 
+        vel2=vel2, 
+        mask1=mask1, 
+        R=3, 
+        min_count=8,
+        generator=generator)
+        rigid_velocities = rigid_velocity_regression(final_cluster_coords, final_cluster_vel, vel1,xyz1)
+        print(rigid_velocities.shape)
+        # 假设权重 w_xyz, w_points, w_vel 是在类的初始化中定义的
+        weighted_xyz1 = self.w_xyz * xyz1  # [B, N, C]
+        weighted_points1 = self.w_points * points1  # [B, N, C]
+        weighted_vel1 = self.w_vel * vel1.unsqueeze(-1)  # [B, N, 1]
 
-        # point-to-patch Volume
-        knn_idx = knn_point(self.nsample, xyz2, xyz1) # B, N1, nsample
+        weighted_xyz2 = self.w_xyz * xyz2  # [B, N, C]
+        weighted_points2 = self.w_points * points2  # [B, N, C]
+        weighted_vel2 = self.w_vel * vel2.unsqueeze(-1)  # [B, N, 1]
+
+        # 拼接加权后的特征
+        features1 = torch.cat((weighted_xyz1, weighted_points1), dim=-1)  # [B, N, C + C + 1]
+        features2 = torch.cat((weighted_xyz2, weighted_points2), dim=-1)  # [B, N, C + C + 1]
+        knn_idx = knn_point(self.nsample, features2, features1) # B, N1, nsample
         neighbor_xyz = index_points_group(xyz2, knn_idx)
         direction_xyz = neighbor_xyz - xyz1.view(B, N1, 1, C)
 
@@ -225,7 +333,7 @@ class FeatureCorrelator(nn.Module):
         point_to_patch_cost = torch.sum(weights * new_points, dim = 2) # B C N
 
         # Patch to Patch Cost
-        knn_idx = knn_point(self.nsample, xyz1, xyz1) # B, N1, nsample
+        knn_idx = knn_point(self.nsample, rigid_velocities, rigid_velocities) # B, N1, nsample
         neighbor_xyz = index_points_group(xyz1, knn_idx)
         direction_xyz = neighbor_xyz - xyz1.view(B, N1, 1, C)
 
@@ -234,7 +342,7 @@ class FeatureCorrelator(nn.Module):
         grouped_point_to_patch_cost = index_points_group(point_to_patch_cost.permute(0, 2, 1), knn_idx) # B, N1, nsample, C
         patch_to_patch_cost = torch.sum(weights * grouped_point_to_patch_cost.permute(0, 3, 2, 1), dim = 2) # B C N
 
-        return patch_to_patch_cost    
+        return patch_to_patch_cost,rigid_velocities
 
             
 class FlowHead(nn.Module):
