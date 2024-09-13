@@ -1808,3 +1808,50 @@ test : 2717
 ###The mean RAE: 0.1231194070606219###
 Max memory alocation: 161.895424MB
 Max memory alocation: 161.895424MB
+{'exp_name': 'cmflow_v', 'model': 'cmflow', 'num_points': 256, 'batch_size': 32, 'val_batch_size': 32, 'epochs': 60, 'lr': 3e-05, 'decay_epochs': 1, 'decay_rate': 0.95, 'cuda_device': '0', 'no_cuda': False, 'seed': 1234, 'num_workers': 8, 'eval': False, 'eval_split': 'test', 'dataset': 'vodDataset', 'train_set': 'train', 'dataset_path': '/root/autodl-tmp/CMFlow/preprocessed_data_com/flow_smp', 'vis': False, 'save_res': False, 'rigid_thres': 0.15, 'vr_thres': 0.3, 'stat_thres': 0.5, 'mini_clip_len': 5, 'update_len': 5, 'load_checkpoint': True, 'model_path': '/root/autodl-tmp/CMFlow/checkpoints/cmflow_v/models/model.best.t7'}
+train : 4649
+val : 1292
+{'exp_name': 'cmflow_v', 'model': 'cmflow', 'num_points': 256, 'batch_size': 32, 'val_batch_size': 32, 'epochs': 60, 'lr': 3e-05, 'decay_epochs': 1, 'decay_rate': 0.95, 'cuda_device': '0', 'no_cuda': False, 'seed': 1234, 'num_workers': 8, 'eval': False, 'eval_split': 'test', 'dataset': 'vodDataset', 'train_set': 'train', 'dataset_path': '/root/autodl-tmp/CMFlow/preprocessed_data_com/flow_smp', 'vis': False, 'save_res': False, 'rigid_thres': 0.15, 'vr_thres': 0.3, 'stat_thres': 0.5, 'mini_clip_len': 5, 'update_len': 5, 'load_checkpoint': True, 'model_path': '/root/autodl-tmp/CMFlow/checkpoints/cmflow_v/models/model.best.t7'}
+train : 4649
+val : 1292
+{'exp_name': 'cmflow_v', 'model': 'cmflow', 'num_points': 256, 'batch_size': 32, 'val_batch_size': 32, 'epochs': 60, 'lr': 3e-05, 'decay_epochs': 1, 'decay_rate': 0.95, 'cuda_device': '0', 'no_cuda': False, 'seed': 1234, 'num_workers': 8, 'eval': False, 'eval_split': 'test', 'dataset': 'vodDataset', 'train_set': 'train', 'dataset_path': '/root/autodl-tmp/CMFlow/preprocessed_data_com/flow_smp', 'vis': False, 'save_res': False, 'rigid_thres': 0.15, 'vr_thres': 0.3, 'stat_thres': 0.5, 'mini_clip_len': 5, 'update_len': 5, 'load_checkpoint': True, 'model_path': '/root/autodl-tmp/CMFlow/checkpoints/cmflow_v/models/model.best.t7'}
+train : 4649
+val : 1292
+{'exp_name': 'cmflow_v', 'model': 'cmflow', 'num_points': 256, 'batch_size': 32, 'val_batch_size': 32, 'epochs': 60, 'lr': 3e-05, 'decay_epochs': 1, 'decay_rate': 0.95, 'cuda_device': '0', 'no_cuda': False, 'seed': 1234, 'num_workers': 8, 'eval': False, 'eval_split': 'test', 'dataset': 'vodDataset', 'train_set': 'train', 'dataset_path': '/root/autodl-tmp/CMFlow/preprocessed_data_com/flow_smp', 'vis': False, 'save_res': False, 'rigid_thres': 0.15, 'vr_thres': 0.3, 'stat_thres': 0.5, 'mini_clip_len': 5, 'update_len': 5, 'load_checkpoint': True, 'model_path': '/root/autodl-tmp/CMFlow/checkpoints/cmflow_v/models/model.best.t7'}
+train : 4649
+val : 1292
+{'exp_name': 'cmflow_v', 'model': 'cmflow', 'num_points': 256, 'batch_size': 32, 'val_batch_size': 32, 'epochs': 60, 'lr': 3e-05, 'decay_epochs': 1, 'decay_rate': 0.95, 'cuda_device': '0', 'no_cuda': False, 'seed': 1234, 'num_workers': 8, 'eval': False, 'eval_split': 'test', 'dataset': 'vodDataset', 'train_set': 'train', 'dataset_path': '/root/autodl-tmp/CMFlow/preprocessed_data_com/flow_smp', 'vis': False, 'save_res': False, 'rigid_thres': 0.15, 'vr_thres': 0.3, 'stat_thres': 0.5, 'mini_clip_len': 5, 'update_len': 5, 'load_checkpoint': True, 'model_path': '/root/autodl-tmp/CMFlow_V/checkpoints/cmflow_v/models/model.best.t7'}
+train : 4649
+val : 1292
+====epoch: 0, learning rate: 0.000030====
+==starting training on the training set==
+{'exp_name': 'cmflow_v', 'model': 'cmflow', 'num_points': 256, 'batch_size': 32, 'val_batch_size': 32, 'epochs': 60, 'lr': 3e-05, 'decay_epochs': 1, 'decay_rate': 0.95, 'cuda_device': '0', 'no_cuda': False, 'seed': 1234, 'num_workers': 8, 'eval': False, 'eval_split': 'test', 'dataset': 'vodDataset', 'train_set': 'train', 'dataset_path': '/root/autodl-tmp/CMFlow/preprocessed_data_com/flow_smp', 'vis': False, 'save_res': False, 'rigid_thres': 0.15, 'vr_thres': 0.3, 'stat_thres': 0.5, 'mini_clip_len': 5, 'update_len': 5, 'load_checkpoint': True, 'model_path': '/root/autodl-tmp/CMFlow_V/checkpoints/cmflow_v/models/model.best.t7'}
+train : 4649
+val : 1292
+====epoch: 0, learning rate: 0.000030====
+==starting training on the training set==
+{'exp_name': 'cmflow_v', 'model': 'cmflow', 'num_points': 256, 'batch_size': 32, 'val_batch_size': 32, 'epochs': 60, 'lr': 3e-05, 'decay_epochs': 1, 'decay_rate': 0.95, 'cuda_device': '0', 'no_cuda': False, 'seed': 1234, 'num_workers': 8, 'eval': False, 'eval_split': 'test', 'dataset': 'vodDataset', 'train_set': 'train', 'dataset_path': '/root/autodl-tmp/CMFlow/preprocessed_data_com/flow_smp', 'vis': False, 'save_res': False, 'rigid_thres': 0.15, 'vr_thres': 0.3, 'stat_thres': 0.5, 'mini_clip_len': 5, 'update_len': 5, 'load_checkpoint': True, 'model_path': '/root/autodl-tmp/CMFlow_V/checkpoints/cmflow_v/models/model.best.t7'}
+train : 4649
+val : 1292
+====epoch: 0, learning rate: 0.000030====
+==starting training on the training set==
+{'exp_name': 'cmflow_v', 'model': 'cmflow', 'num_points': 256, 'batch_size': 32, 'val_batch_size': 32, 'epochs': 60, 'lr': 3e-05, 'decay_epochs': 1, 'decay_rate': 0.95, 'cuda_device': '0', 'no_cuda': False, 'seed': 1234, 'num_workers': 8, 'eval': False, 'eval_split': 'test', 'dataset': 'vodDataset', 'train_set': 'train', 'dataset_path': '/root/autodl-tmp/CMFlow/preprocessed_data_com/flow_smp', 'vis': False, 'save_res': False, 'rigid_thres': 0.15, 'vr_thres': 0.3, 'stat_thres': 0.5, 'mini_clip_len': 5, 'update_len': 5, 'load_checkpoint': True, 'model_path': '/root/autodl-tmp/CMFlow_V/checkpoints/cmflow_v/models/model.best.t7'}
+train : 4649
+val : 1292
+====epoch: 0, learning rate: 0.000030====
+==starting training on the training set==
+{'exp_name': 'cmflow_v', 'model': 'cmflow', 'num_points': 256, 'batch_size': 32, 'val_batch_size': 32, 'epochs': 60, 'lr': 3e-05, 'decay_epochs': 1, 'decay_rate': 0.95, 'cuda_device': '0', 'no_cuda': False, 'seed': 1234, 'num_workers': 8, 'eval': False, 'eval_split': 'test', 'dataset': 'vodDataset', 'train_set': 'train', 'dataset_path': '/root/autodl-tmp/CMFlow/preprocessed_data_com/flow_smp', 'vis': False, 'save_res': False, 'rigid_thres': 0.15, 'vr_thres': 0.3, 'stat_thres': 0.5, 'mini_clip_len': 5, 'update_len': 5, 'load_checkpoint': True, 'model_path': '/root/autodl-tmp/CMFlow_V/checkpoints/cmflow_v/models/model.best.t7'}
+train : 4649
+val : 1292
+====epoch: 0, learning rate: 0.000030====
+==starting training on the training set==
+{'exp_name': 'cmflow_v', 'model': 'cmflow', 'num_points': 256, 'batch_size': 32, 'val_batch_size': 32, 'epochs': 60, 'lr': 3e-05, 'decay_epochs': 1, 'decay_rate': 0.95, 'cuda_device': '0', 'no_cuda': False, 'seed': 1234, 'num_workers': 8, 'eval': False, 'eval_split': 'test', 'dataset': 'vodDataset', 'train_set': 'train', 'dataset_path': '/root/autodl-tmp/CMFlow/preprocessed_data_com/flow_smp', 'vis': False, 'save_res': False, 'rigid_thres': 0.15, 'vr_thres': 0.3, 'stat_thres': 0.5, 'mini_clip_len': 5, 'update_len': 5, 'load_checkpoint': True, 'model_path': '/root/autodl-tmp/CMFlow_V/checkpoints/cmflow_v/models/model.best.t7'}
+train : 4649
+val : 1292
+====epoch: 0, learning rate: 0.000030====
+==starting training on the training set==
+{'exp_name': 'cmflow_v', 'model': 'cmflow', 'num_points': 256, 'batch_size': 32, 'val_batch_size': 32, 'epochs': 60, 'lr': 3e-05, 'decay_epochs': 1, 'decay_rate': 0.95, 'cuda_device': '0', 'no_cuda': False, 'seed': 1234, 'num_workers': 8, 'eval': False, 'eval_split': 'test', 'dataset': 'vodDataset', 'train_set': 'train', 'dataset_path': '/root/autodl-tmp/CMFlow/preprocessed_data_com/flow_smp', 'vis': False, 'save_res': False, 'rigid_thres': 0.15, 'vr_thres': 0.3, 'stat_thres': 0.5, 'mini_clip_len': 5, 'update_len': 5, 'load_checkpoint': True, 'model_path': '/root/autodl-tmp/CMFlow_V/checkpoints/cmflow_v/models/model.best.t7'}
+train : 4649
+val : 1292
+====epoch: 0, learning rate: 0.000030====
+==starting training on the training set==

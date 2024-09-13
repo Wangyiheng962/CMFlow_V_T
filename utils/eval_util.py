@@ -40,7 +40,8 @@ def get_carterian_res(pc, sensor, args):
     return xyz_res
         
 def eval_scene_flow(pc, pred, labels, mask,vel,rigid_velocities,args):
-
+    for m in mask:
+        print(m)
     
     pc = pc.cpu().numpy()
     pred = pred.cpu().detach().numpy()

@@ -290,7 +290,7 @@ class RadarFlowLoss(Module):
             items['superviseLoss'] = dyn_flow_loss.item()
             items['VelocityRegressionLoss']=velocity_loss.item()
             total_loss = self.w_self * self_sup_loss + self.w_em * ego_motion_loss +\
-                         self.w_ms * motion_seg_loss + self.w_opt * opt_flow_loss + self.w_dyn * dyn_flow_loss+velocity_loss*0.1
+                         self.w_ms * motion_seg_loss + self.w_opt * opt_flow_loss + self.w_dyn * dyn_flow_loss+velocity_loss*0.5
 
         return total_loss, items
 

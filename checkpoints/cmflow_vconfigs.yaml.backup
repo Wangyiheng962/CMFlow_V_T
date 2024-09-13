@@ -39,6 +39,6 @@ update_len: 5
 
 ## checkpoint
 load_checkpoint: True
-model_path: '/root/autodl-tmp/CMFlow/checkpoints/cmflow_v/models/model.best.t7'
+model_path: '/root/autodl-tmp/CMFlow_V/checkpoints/cmflow_v/models/model.best.t7'
 
 

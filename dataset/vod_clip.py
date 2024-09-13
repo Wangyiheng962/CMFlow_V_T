@@ -84,6 +84,8 @@ class vodClipDataset(Dataset):
         pos_2 = data_2[:,0:3]
         feature_1 = data_1[:,[4,3,3]]
         feature_2 = data_2[:,[4,3,3]] 
+        vel1=data_1[:,4]
+        vel2=data_2[:,4]
 
         # GT labels and pseudo labels (from lidar)
         gt_labels = np.array(data["gt_labels"]).astype('float32')
@@ -111,22 +113,29 @@ class vodClipDataset(Dataset):
 
         # static points transformation from frame 1 to frame 2  
         trans = np.linalg.inv(np.array(data["trans"])).astype('float32')
-        
+        npts_1 = pos_1.shape[0]
+        npts_2 = pos_2.shape[0]
         ## keep npoints to enable fast batch processing (not in test)
         if not self.eval:
 
-            sample_idx1, sample_idx2 = self.sample_points(pos_1.shape[0], pos_2.shape[0])
+            sample_idx1, sample_idx2,mask_1,mask_2 = self.sample_points(pos_1.shape[0], pos_2.shape[0])
             pos_1 = pos_1[sample_idx1,:]
             pos_2 = pos_2[sample_idx2,:]
             feature_1 = feature_1[sample_idx1, :]
             feature_2 = feature_2[sample_idx2, :]
+            vel1 = vel1[sample_idx1]
+            vel2 = vel2[sample_idx2]
             radar_u = radar_u[sample_idx1]
             radar_v = radar_v[sample_idx1]
             opt_flow = opt_flow[sample_idx1,:]
             labels = labels[sample_idx1,:]
             mask = mask[sample_idx1]
+        else:
+            mask_1=np.ones(npts_1,dtype=bool)
+            mask_2=np.ones(npts_2,dtype=bool)
 
-        return pos_1, pos_2, feature_1, feature_2, trans, labels, mask, interval, radar_u, radar_v, opt_flow
+        return pos_1, pos_2, feature_1, feature_2, trans, labels, mask, interval, radar_u, radar_v, opt_flow,vel1,vel2,mask_1,mask_2
+
 
 
     def get_clip_item(self, index):
@@ -143,13 +152,18 @@ class vodClipDataset(Dataset):
         mini_radar_u = np.zeros((self.mini_clip_len, self.npoints)).astype('float32')
         mini_radar_v = np.zeros((self.mini_clip_len, self.npoints)).astype('float32')
         mini_opt_flow = np.zeros((self.mini_clip_len, self.npoints, 2)).astype('float32')
+        mini_vel1 = np.zeros((self.mini_clip_len, self.npoints)).astype('float32')  # 修改为二维的 vel1
+        mini_vel2 = np.zeros((self.mini_clip_len, self.npoints)).astype('float32')  # 修改为二维的 vel2
+        mini_mask_1 = np.zeros((self.mini_clip_len, self.npoints), dtype=bool)  # 修改为布尔类型的 mask_1
+        mini_mask_2 = np.zeros((self.mini_clip_len, self.npoints), dtype=bool)  # 修改为布尔类型的 mask_2
+                
 
         for i in range(0,len(mini_sample)):
             with open(mini_sample[i], 'rb') as fp:
                 data = ujson.load(fp)
 
             pos_1, pos_2, feature_1, feature_2,trans, labels, mask,\
-                 interval, radar_u, radar_v, opt_flow = self.get_sample_item(data) 
+                 interval, radar_u, radar_v, opt_flow,vel1,vel2,mask_1,mask_2 = self.get_sample_item(data) 
 
             # accumulate sample information
             mini_pos_1[i] = pos_1
@@ -163,9 +177,13 @@ class vodClipDataset(Dataset):
             mini_radar_u[i] = radar_u
             mini_radar_v[i] = radar_v
             mini_opt_flow[i] = opt_flow
+            mini_vel1[i] = vel1  # 更新 mini_vel1
+            mini_vel2[i] = vel2  # 更新 mini_vel2
+            mini_mask_1[i] = mask_1  # 更新 mini_mask_1
+            mini_mask_2[i] = mask_2  # 更新 mini_mask_2`
 
         return mini_pos_1, mini_pos_2, mini_feat_1, mini_feat_2, mini_trans, mini_labels, mini_mask,\
-            mini_interval, mini_radar_u, mini_radar_v, mini_opt_flow
+            mini_interval, mini_radar_u, mini_radar_v, mini_opt_flow,mini_vel1,mini_vel2,mini_mask_1,mini_mask_2
 
     def read_calib_files(self):
         with open(self.calib_path, "r") as f:
@@ -177,18 +195,22 @@ class vodClipDataset(Dataset):
         self.t_camera_radar = extrinsic
 
     def sample_points(self, npts_1, npts_2,):
+        mask_1 = np.ones(self.npoints, dtype=bool)
+        mask_2 = np.ones(self.npoints, dtype=bool)
 
         if npts_1<self.npoints:
             sample_idx1 = np.arange(0,npts_1)
             sample_idx1 = np.append(sample_idx1, np.random.choice(npts_1,self.npoints-npts_1,replace=True))
+            mask_1[npts_1:] = False  # Mark the additional points as False
         else:
             sample_idx1 = np.random.choice(npts_1, self.npoints, replace=False)
         if npts_2<self.npoints:
             sample_idx2 = np.arange(0,npts_2)
             sample_idx2 = np.append(sample_idx2, np.random.choice(npts_2,self.npoints-npts_2,replace=True))
+            mask_2[npts_2:] = False  # Mark the additional points as False
         else:
             sample_idx2 = np.random.choice(npts_2, self.npoints, replace=False)   
-        return sample_idx1, sample_idx2
+        return sample_idx1, sample_idx2,mask_1,mask_2
 
     def __len__(self):
 

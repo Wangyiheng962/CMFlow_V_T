@@ -34,7 +34,7 @@ def train_one_epoch_seq(args, net, train_loader, opt):
         for j in range(0,seq_len):
             ## reading data from dataloader and transform their format
             pc1, pc2, ft1, ft2, gt_trans, flow_label, \
-                fg_mask, interval, radar_u, radar_v, opt_flow = extract_data_info_clip(data, j)
+                fg_mask, interval, radar_u, radar_v, opt_flow,vel_1, vel_2, mask_1, mask_2 = extract_data_info_clip(data, j)
         
             batch_size = pc1.size(0)
     
@@ -49,14 +49,14 @@ def train_one_epoch_seq(args, net, train_loader, opt):
             
                 # forward and loss computation
                 if j==0:
-                    pred_f, mseg_pre, pre_trans, _, gfeat = net(pc1, pc2, ft1, ft2, mseg_gt, mode, None)
+                    pred_f, mseg_pre, pre_trans, _, gfeat,rigid_velocities = net(pc1, pc2, ft1, ft2, mseg_gt, mode,None,vel_1,vel_2,mask_1,mask_2,v_train=False)
                 else: 
                     gfeat = gfeat.detach()
-                    pred_f, mseg_pre, pre_trans, _, gfeat = net(pc1, pc2, ft1, ft2, mseg_gt, mode, gfeat)
+                    pred_f, mseg_pre, pre_trans, _, gfeat,rigid_velocities = net(pc1, pc2, ft1, ft2, mseg_gt, mode,gfeat,vel_1,vel_2,mask_1,mask_2,v_train=False)
                     
                 loss_obj = RadarFlowLoss()
                 loss, items = loss_obj(args, pc1, pc2, pred_f, vel1, flow_label.transpose(2,1), pre_trans, mseg_pre, gt_trans,\
-                                        mseg_gt, dyn_mask, radar_u, radar_v, opt_flow)
+                                        mseg_gt, dyn_mask, radar_u, radar_v, opt_flow,rigid_velocities=rigid_velocities)
             opt.zero_grad() 
             loss.backward()
             opt.step()
@@ -80,7 +80,7 @@ def train_one_epoch_seq(args, net, train_loader, opt):
 
 def extract_data_info_clip(seq_data, idx):
 
-    pc1, pc2, ft1, ft2, trans, gt, mask, interval, radar_u, radar_v, opt_flow = seq_data
+    pc1, pc2, ft1, ft2, trans, gt, mask, interval, radar_u, radar_v, opt_flow,vel1, vel2, mask_1, mask_2 = seq_data
     pc1 = pc1[:,idx].cuda().transpose(2,1).contiguous()
     pc2 = pc2[:,idx].cuda().transpose(2,1).contiguous()
     ft1 = ft1[:,idx].cuda().transpose(2,1).contiguous()
@@ -92,8 +92,12 @@ def extract_data_info_clip(seq_data, idx):
     trans = trans[:,idx].cuda().float()
     interval = interval[:,idx].cuda().float()
     gt = gt[:,idx].cuda().float()
+    vel1 = vel1[:, idx].cuda().float()  # 新增处理 vel1
+    vel2 = vel2[:, idx].cuda().float()  # 新增处理 vel2
+    mask_1 = mask_1[:, idx].cuda()  # 新增处理 mask_1
+    mask_2 = mask_2[:, idx].cuda() # 新增处理 mask_2
 
-    return pc1, pc2, ft1, ft2, trans, gt, mask, interval, radar_u, radar_v, opt_flow
+    return pc1, pc2, ft1, ft2, trans, gt, mask, interval, radar_u, radar_v, opt_flow,vel1, vel2, mask_1, mask_2
 
 
 def eval_one_epoch_seq(args, net, eval_loader, textio):
@@ -104,10 +108,11 @@ def eval_one_epoch_seq(args, net, eval_loader, textio):
     num_pcs=0 
     
     sf_metric = {'rne':0, '50-50 rne': 0, 'mov_rne': 0, 'stat_rne': 0,\
-                 'sas': 0, 'ras': 0, 'epe': 0, 'accs': 0, 'accr': 0}
+                 'sas': 0, 'ras': 0, 'epe': 0, 'accs': 0, 'accr': 0,'vel_epe': 0}
+
 
     seg_metric = {'acc': 0, 'miou': 0, 'sen': 0}
-    pose_metric = {'RRE': 0, 'RTE': 0}
+    pose_metric = {'RAE': 0, 'RTE': 0}
 
 
     seq_len = eval_loader.dataset.mini_clip_len    
@@ -116,7 +121,7 @@ def eval_one_epoch_seq(args, net, eval_loader, textio):
     pre_trans_all = torch.zeros((len(eval_loader)*batch_size*seq_len,4,4)).cuda()
 
     # start point for inference
-    start_point = time.time()
+    start_point = time()
 
     with torch.no_grad():
         # read sequence data
@@ -125,20 +130,20 @@ def eval_one_epoch_seq(args, net, eval_loader, textio):
             for j in range(0,seq_len):
                 ## reading data from dataloader and transform their format
                 pc1, pc2, ft1, ft2, trans, gt, \
-                    mask, interval, radar_u, radar_v, opt_flow = extract_data_info_clip(data, j)
+                    mask, interval, radar_u, radar_v, opt_flow,vel_1, vel_2, mask_1, mask_2= extract_data_info_clip(data, j)
         
                 if args.model in ['cmflow_t']:
                     if j==0:
-                        pred_f, _, pred_t, pred_m, gfeat = net(pc1, pc2, ft1, ft2, None, 'test', None)
+                        pred_f, _, pred_t, pred_m, gfeat,rigid_velocities= net(pc1, pc2, ft1, ft2, None, 'test', None,vel_1,vel_2,mask_1,mask_2,v_train=False)
                     else:
-                        pred_f, _, pred_t, pred_m, gfeat = net(pc1, pc2, ft1, ft2, None, 'test', gfeat)
+                        pred_f, _, pred_t, pred_m, gfeat,rigid_velocities = net(pc1, pc2, ft1, ft2, None, 'test', gfeat,vel_1,vel_2,mask_1,mask_2,v_train=False)
                 
                 batch_size = pc1.shape[0]
                 ## use estimated scene to warp point cloud 1 
                 pc1_warp=pc1+pred_f
                 
                 ## evaluate the estimated results using ground truth
-                batch_res = eval_scene_flow(pc1, pred_f.transpose(2,1).contiguous(), gt, mask, args)
+                batch_res = eval_scene_flow(pc1, pred_f.transpose(2,1).contiguous(), gt, mask, vel_1,rigid_velocities,args)
                 for metric in sf_metric:
                     sf_metric[metric] += batch_size * batch_res[metric]
                 
@@ -165,7 +170,7 @@ def eval_one_epoch_seq(args, net, eval_loader, textio):
                 num_pcs+=batch_size
 
     # end point for inference
-    infer_time = time.time()-start_point
+    infer_time = time()-start_point
 
     for metric in sf_metric:
         sf_metric[metric] = sf_metric[metric]/num_pcs
@@ -221,16 +226,16 @@ def test_one_epoch_seq(args, net, test_loader, textio):
             
             ## reading data from dataloader and transform their format
             pc1, pc2, ft1, ft2, trans, gt, \
-                mask, interval, radar_u, radar_v, opt_flow = extract_data_info(data)
+                mask, interval, radar_u, radar_v, opt_flow,vel_1, vel_2, mask_1, mask_2 = extract_data_info(data)
         
             if args.model in ['cmflow_t']:
                 #if i==clips_st_index[num_clip]:
                 if i==clips_st_index[num_clip] or i%seq_len==0:
-                    pred_f, stat_cls, pred_t, pred_m, gfeat = net(pc1, pc2, ft1, ft2, None, 'test', None)
+                    pred_f, _, pred_t, pred_m, gfeat,rigid_velocities= net(pc1, pc2, ft1, ft2, None, 'test', None,vel_1,vel_2,mask_1,mask_2,v_train=False)
                     if num_clip<(len(clips_name)-1):
                         num_clip +=1
                 else:
-                    pred_f, stat_cls, pred_t, pred_m, gfeat = net(pc1, pc2, ft1, ft2, None, 'test', gfeat)
+                   pred_f, _, pred_t, pred_m, gfeat,rigid_velocities = net(pc1, pc2, ft1, ft2, None, 'test', gfeat,vel_1,vel_2,mask_1,mask_2,v_train=False)
 
             ## use estimated scene to warp point cloud 1 
             pc1_warp=pc1+pred_f
@@ -262,7 +267,7 @@ def test_one_epoch_seq(args, net, test_loader, textio):
                 visulize_result_2D_seg_pre(pc1, pc2, mask, pred_m, num_pcs, args)
             
             ## evaluate the estimated results using ground truth
-            batch_res = eval_scene_flow(pc1, pred_f.transpose(2,1).contiguous(), gt, mask, args)
+            batch_res = eval_scene_flow(pc1, pred_f.transpose(2,1).contiguous(), gt, mask, vel_1,rigid_velocities,args)
             for metric in sf_metric:
                 sf_metric[metric] += batch_res[metric]
 
